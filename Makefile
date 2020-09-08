@@ -19,7 +19,7 @@ TextManager.o: TextManager.cpp TextManager.hpp
 clock.o: clock.cpp Clock.hpp
 	$(COMPILER) -c $< -I include
 
-http.o: http.cpp http.hpp
+http.o: http.cpp http.hpp env.hpp
 	$(COMPILER) -c $< -I include $(IJSON)
 
 initialization.o: initialization.cpp initialization.hpp constants.hpp
