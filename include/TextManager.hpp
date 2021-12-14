@@ -5,38 +5,73 @@
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <map>
+#include <vector>
+#include <cstdint>
+#include <rect.hpp>
 
-namespace TextManager
-{
-  class GlyphCache {
-    private:
-      SDL_Renderer *renderer;
-      TTF_Font *font;
+class GlyphCache {
+    SDL_Renderer* renderer;
+    TTF_Font* font;
 
-    public:
-      std::map<char, SDL_Rect*> glyph_map;
+  public:
+    std::map<char, SDL_Rect*> glyph_map;
+    SDL_Texture* glyphset = nullptr; // glyph atlas
+    GlyphCache(SDL_Renderer* r, TTF_Font* f );
+    ~GlyphCache();
+};
 
-      SDL_Texture *glyphset = NULL; // glyph atlas
+class TextArea {
+    static TextArea* active_ta_ptr;
+    bool active = false;
+    SDL_Renderer *renderer;
+    Rect<int>     d; // x,y,w,h
+    Rect<uint8_t> textColor;
+    Rect<uint8_t> bgColor;
+    std::string text;
+    const GlyphCache& gc;
 
-      GlyphCache(SDL_Renderer *r, TTF_Font *f );
+    mutable int firstLineToRender = 0;
+    size_t cursor_pos = 0;
+    const int maxLines;
+    const int maxCharsPerLine;
+    int furthestOffset = 0;
 
-      ~GlyphCache();
+    struct LineDatum {
+      int text_idx = 0;
+      int num_chars = 0;
+      int cursor_pos = 0;
+      LineDatum(int idx) : text_idx(idx) { }
+      LineDatum(int idx, int n) : text_idx(idx), num_chars(n) { }
+    };
 
-      SDL_Rect *getGlyphRect(const char ch);
-  };
+    std::vector<LineDatum> lineData;
 
-  class TextArea {
-    private:
-      SDL_Renderer *renderer;
-      int _x, _y, _w, _h;
-
-    public:
-      TextArea( SDL_Renderer *r, int x, int y, int w, int h );
-
-      void renderPrint( const GlyphCache &gc, const char *text );
-
-      void drawRect();
-  };
-}
+    std::string getTextToRender(); // uses line data to get substring
+    void getLineAndOffsetFromIdx(int idx, int& line, int& offset);
+    int getLLTR();
+  public:
+    static uint8_t padding;
+    static void activate(TextArea&) noexcept;
+    TextArea(SDL_Renderer*,
+             Rect<int>,
+             Rect<uint8_t>,
+             Rect<uint8_t>,
+             const GlyphCache&);
+    void setText(const std::string& s);
+    std::string getText() const;
+    void renderPrint();
+    void updateLineData();
+    void append(char);
+    void backspace();
+    void curseUp();
+    void curseDown();
+    void curseLeft();
+    void curseRight();
+    void updateFLTR();
+    void zt();
+    void zb();
+    void gg();
+    void G();
+};
 
 #endif // TEXT_MANAGER_HPP

@@ -12,7 +12,7 @@ bool sdl_init( SDL_Window **window_p, SDL_Renderer **renderer_p )
     success = false;
   }
 
-  *window_p = SDL_CreateWindow( "SDL FONT DEMO", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN );
+  *window_p = SDL_CreateWindow( "SDL FONT DEMO", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE );
   if( *window_p == NULL )
   {
     printf( "Window could not be created! Error: %s\n", SDL_GetError() );
@@ -32,10 +32,6 @@ bool sdl_init( SDL_Window **window_p, SDL_Renderer **renderer_p )
     success = false;
   }
 
-  if( Mix_OpenAudio( 44100, MIX_DEFAULT_FORMAT, 2, 2048 ) < 0 ) {
-    printf( "SDL_mixer failed to init: %s\n", Mix_GetError() );
-    success = false;
-  }
   SDL_RenderSetLogicalSize( *renderer_p, L_WIDTH, L_HEIGHT );
 
   return success;
@@ -45,8 +41,9 @@ bool load_font( TTF_Font **font_p )
 {
   bool success = true;
   //// gb.ttf, press_start.ttf, 04b_03.ttf ////
-  //gFont = TTF_OpenFont( "fonts/pc_fonts/ttf-mx-mixed-outline+bitmap/Mx437_ATI_8x8.ttf", 8);
-  *font_p = TTF_OpenFont( "fonts/04b_03.ttf", 8);
+  *font_p = TTF_OpenFont("/Users/nathanklundt/fonts/04b_03.ttf", 32);
+  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/pc_fonts/ttf-mx-mixed-outline+bitmap/Mx437_AMI_EGA_9x14.ttf", 16);
+  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/anka-coder-fonts/AnkaCoder/ankacoder_norm_regular.otf", 20);
   if( *font_p == NULL )
   {
     printf( "Failed to load font! SDL_ttf Error: %s\n", TTF_GetError() );

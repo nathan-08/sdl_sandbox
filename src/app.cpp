@@ -1,85 +1,29 @@
 #include <SDL.h>
 #include <SDL_ttf.h>
 #include <SDL_mixer.h>
-#include <ctype.h>
+#include <cctype>
 #include <cstdint>
 #include <iostream>
 #include <sstream>
+#include <fstream>
 #include <exception>
 #include "app.hpp"
 #include "TextManager.hpp"
-#include "Clock.hpp"
-#include "http.hpp"
 #include "AppErr.hpp"
 #include "initialization.hpp"
 #include "constants.hpp"
 #include <vector>
-#include "geometry.hpp"
-#include <bitset>
+#include "rect.hpp"
 
+using namespace std;
 static SDL_Window *gWindow = NULL;
 static SDL_Renderer *gRenderer = NULL;
 static TTF_Font *gFont = NULL;
+TextArea* tap = nullptr;
 
-enum Direction { UP = 1 << 0, DOWN = 1 << 1, LEFT = 1 << 2, RIGHT = 1 << 3 };
-struct Movement {
-  uint8_t dir = DOWN;
-  const int VEL = 1;
-  int velX = 0;
-  int velY = 0;
-  void move() {
-    static uint8_t counter = 0;
-    counter++;
-    drect.x += velX;
-    drect.y += velY;
-    if( counter % 4 == 0 ) {
-      if( dir & ( DOWN | UP ) ) {
-        if( velX | velY ) {
-          srect.x = srect.x <= 0x08 ? 0x10 : 0x00;
-        } else {
-          srect.x = 0x08;
-        }
-      } else if( dir & ( LEFT | RIGHT ) ) {
-        if( velX | velY ) {
-          srect.x = srect.x == 0x00 ? 0x08 : 0x00;
-        } else {
-          srect.x = 0x00;
-        }
-      }
+string getCharlist(void);
 
-
-      //if( velX | velY ) {
-        //srect.x = srect.x == 0x18 ? 0x00 : srect.x + 0x08;
-      //} else {
-        //if( dir == UP || dir == DOWN )
-          //srect.x = 0x08;
-        //else
-          //srect.x = 0x00;
-      //}
-    }
-    switch( dir ) {
-      case UP:
-        srect.y = 0x08;
-        break;
-      case DOWN:
-        srect.y = 0x00;
-        break;
-      case LEFT:
-        srect.y = 0x18;
-        break;
-      case RIGHT:
-        srect.y = 0x10;
-        break;
-    }
-  }
-  SDL_Rect *getDestRect() { return &drect; }
-  SDL_Rect *getSourceRect() { return &srect; }
-  Movement( int x, int y ): drect{ x, y, 8, 8 } {}
-  Movement() = default;
-
-  SDL_Rect srect{ 0, 0, 8, 8 };
-  SDL_Rect drect{ 0, 0, 8, 8 };
-};
+bool App::quit = false;
 
 void App::init() // uses functions declared in initialization.hpp
 {
@@ -87,145 +31,158 @@ void App::init() // uses functions declared in initialization.hpp
     if (!load_font( &gFont )) throw AppErr("load font failed");
 }
 
+string App::filepath;
+
+void App::execute_command(string command) {
+  //cout << "executing <" << command << ">" << endl;
+  if (command.find(":open ") == 0) {
+    // TODO work on this
+    ifstream f(command.substr(6), fstream::in | fstream::out);
+    if (!f.is_open()) {
+      cout << "failed to open " + command.substr(6) << endl;
+      return;
+    }
+    filepath = command.substr(6);
+    ostringstream oss;
+    oss << f.rdbuf();
+    tap->setText(oss.str());
+  }
+  else if (command == ":q") {
+    quit = true;
+  }
+  else if (command == ":zt") {
+    tap->zt();
+  }
+  else if (command == ":zb") {
+    tap->zb();
+  }
+  else if (command == ":gg") {
+    tap->gg();
+  }
+  else if (command == ":G") {
+    tap->G();
+  }
+}
+
 void App::mainloop()
 {
-    // load spritesheet
-    SDL_Surface* dude_sheet = SDL_LoadBMP("../assets/dood_sprites.bmp");
-    if(!dude_sheet)
-      throw std::runtime_error("failed to load dood_sprites.bmp");
-    SDL_SetColorKey( dude_sheet, SDL_TRUE, SDL_MapRGB( dude_sheet->format, 0, 0, 0 ) );
+  GlyphCache glyphcache(gRenderer, gFont);
+  TextArea ta(gRenderer,
+              {0, 0, L_WIDTH, L_HEIGHT - (CHAR_H + TextArea::padding)},
+              {0xee, 0xee, 0xee, 0xff},       // text color
+              {0x40, 0x60, 0xee, 0xff},       // bg color
+              glyphcache);    
+  TextArea::activate(ta);
+  tap = &ta;
+  TextArea sb(gRenderer,
+              {0, L_HEIGHT - (CHAR_H + TextArea::padding), L_WIDTH, (CHAR_H + TextArea::padding)},
+              {0x40, 0x60, 0xee, 0xff},       // text color
+              {0xee, 0xee, 0xee, 0xff},       // bg color
+              glyphcache);    
+  sb.setText("EDIT MODE");
+  enum Mode { EDIT, INSERT };
+  enum SubMode { DEFAULT, COMMAND };
+  Mode mode = EDIT;
+  SubMode subMode = DEFAULT;
 
-    SDL_Texture* sheet_texture = SDL_CreateTextureFromSurface( gRenderer, dude_sheet );
-    if(!sheet_texture)
-      throw std::runtime_error("failed to create sheet texture");
+  SDL_Event e;
 
-    SDL_FreeSurface( dude_sheet );
+  string inputText("");
 
-    std::ostringstream oss;
-
-    TextManager::TextArea mainTextArea( gRenderer, 0, 0, L_WIDTH - 8, 8 );
-    TextManager::TextArea statusTextArea( gRenderer, 0, 8, L_WIDTH - 8, 8 );
-    TextManager::TextArea bits( gRenderer, 0, 16, L_WIDTH - 8, 8 );
-
-    TextManager::GlyphCache glyphcache( gRenderer, gFont );
-    std::string timestr = Clock::getTime();
-    std::string weather = HTTP::get_weather();
-    bool quit = false;
-    SDL_Event e;
-    //SDL_StartTextInput();
-    std::string inputText = "";
-    unsigned frame_counter = 0;
-    Movement m( L_WIDTH - 8, L_HEIGHT - 8 );
-
-    // setup music
-    Mix_Chunk *coinSound = Mix_LoadWAV( "../assets/audio/coin.wav" );
-    Mix_Chunk *powerupSound = Mix_LoadWAV( "../assets/audio/powerup.wav" );
-    if( !coinSound || !powerupSound ) throw new std::runtime_error( "Failed to load audio\n" );
-
-    while( !quit )
-    {
-        while( SDL_PollEvent( &e ) != 0 )
-        {
-            if( e.type == SDL_QUIT )
-            {
-                quit = true;
-            }
-            if( e.type == SDL_KEYDOWN && e.key.repeat == 0 )
-            {
-              switch( e.key.keysym.sym )
-              {
-                case SDLK_s:
-                              Mix_PlayChannel( -1, coinSound, 0 );
-                              break;
-                case SDLK_a:
-                              Mix_PlayChannel( -1, powerupSound, 0 );
-                              break;
-                case SDLK_k:
-                case SDLK_UP: m.velY -= m.VEL;
-                              m.dir |= UP;
-                              break;
-                case SDLK_j:
-                case SDLK_DOWN: m.velY += m.VEL;
-                                m.dir |= DOWN;
-                                break;
-                case SDLK_h:
-                case SDLK_LEFT: m.velX -= m.VEL;
-                                m.dir |= LEFT;
-                                break;
-                case SDLK_l:
-                case SDLK_RIGHT: m.velX += m.VEL;
-                                 m.dir |= RIGHT;
-                                 break;
+  while( !quit )
+  {
+    if (mode == EDIT) {
+      while( SDL_PollEvent( &e ) != 0 )
+      {
+          if( e.type == SDL_QUIT ) quit = true;
+          if (e.type == SDL_TEXTINPUT) {
+            if (subMode == DEFAULT) {
+              if (e.text.text[0] == ':') {
+                subMode = COMMAND;
+                sb.setText("");
+                sb.append(':');
               }
             }
-            else if( e.type == SDL_KEYUP && e.key.repeat == 0 )
-            {
-              switch( e.key.keysym.sym )
-              {
-                case SDLK_k:
-                case SDLK_UP: m.velY += m.VEL;
-                              m.dir &= ~UP;
-                              break;
-                case SDLK_j:
-                case SDLK_DOWN: m.velY -= m.VEL;
-                                m.dir &= ~DOWN;
-                                break;
-                case SDLK_h:
-                case SDLK_LEFT: m.velX += m.VEL;
-                                m.dir &= ~LEFT;
-                                break;
-                case SDLK_l:
-                case SDLK_RIGHT: m.velX -= m.VEL;
-                                m.dir &= ~RIGHT;
-                                 break;
-              }
+            else if (subMode == COMMAND) {
+              sb.append(e.text.text[0]);
             }
-            //else if( e.type == SDL_KEYDOWN )
-            //{
-                //if( e.key.keysym.sym == SDLK_BACKSPACE && inputText.length() > 0 ) { inputText.pop_back(); }
-                //else if( e.key.keysym.sym == SDLK_RETURN ) { inputText += '\n'; }
-            //}
-            //else if( e.type == SDL_TEXTINPUT )
-            //{
-                //inputText += e.text.text;
-            //}
-        }
-
-        // update time
-        if (frame_counter % 60 == 0)
-        {
-          timestr = Clock::getTime();
-        }
-        if (frame_counter % (60*60*5) == 0)
-        {
-          weather = HTTP::get_weather();
-        }
-
-        SDL_SetRenderDrawColor( gRenderer, 0x1a, 0x34, 0x61, 0xFF );
-        SDL_RenderClear( gRenderer );
-
-        SDL_SetRenderDrawColor( gRenderer, 0xff, 0xff, 0xff, 0xFF );
-
-        oss.str(""); oss.clear();
-        oss << static_cast<std::bitset<4>>(m.dir) << std::endl;
-
-        mainTextArea.renderPrint( glyphcache, weather.c_str() );
-        statusTextArea.renderPrint( glyphcache, timestr.c_str() );
-        bits.renderPrint( glyphcache, oss.str().c_str() );
-
-        if (frame_counter % 2 == 0) m.move();
-        SDL_RenderCopy( gRenderer, sheet_texture, m.getSourceRect(), m.getDestRect() );
-
-        SDL_SetRenderDrawColor( gRenderer, 0xFF, 0, 0, 0xFF );
-        //Geometry::drawCircle( gRenderer, 40, 40, 10 );
-
-        SDL_RenderPresent( gRenderer );
-        ++frame_counter;
+          }
+          else if (e.type == SDL_KEYDOWN) {
+            switch (e.key.keysym.sym) {
+              case SDLK_i:
+                if (subMode == DEFAULT) {
+                  mode = INSERT;
+                  sb.setText("INSERT MODE");
+                  while (SDL_PollEvent(&e) != 0);
+                  break;
+                }
+              case SDLK_k:
+                if (subMode == DEFAULT) {
+                  ta.curseUp();
+                }
+                break;
+              case SDLK_j:
+                if (subMode == DEFAULT) {
+                  ta.curseDown();
+                }
+                break;
+              case SDLK_h:
+                if (subMode == DEFAULT) {
+                  ta.curseLeft();
+                }
+                break;
+              case SDLK_l:
+                if (subMode == DEFAULT) {
+                  ta.curseRight();
+                }
+                break;
+              case SDLK_RETURN:
+                if (subMode == COMMAND) {
+                  execute_command(sb.getText());
+                  subMode = DEFAULT;
+                  sb.setText("EDIT MODE");
+                }
+                break;
+              case SDLK_BACKSPACE:
+                if (subMode == COMMAND) {
+                  sb.backspace();
+                }
+            }
+          }
+      }
     }
+    else if (mode == INSERT) {
+      while (SDL_PollEvent(&e) != 0) {
+        if( e.type == SDL_QUIT )
+        { quit = true; }
+        if (e.type == SDL_TEXTINPUT) {
+          ta.append(e.text.text[0]);
+        }
+        else if (e.type == SDL_KEYDOWN) {
+          switch (e.key.keysym.sym) {
+            case SDLK_RETURN:
+              ta.append('\n');
+              break;
+            case SDLK_BACKSPACE:
+              ta.backspace();
+              break;
+            case SDLK_ESCAPE:
+              mode = EDIT;
+              sb.setText("EDIT MODE");
+              while (SDL_PollEvent(&e)!=0); // flush events
+          }
+        }
+      }
 
-    SDL_DestroyTexture( sheet_texture );
-    Mix_FreeChunk( coinSound ); coinSound = nullptr;
-    Mix_FreeChunk( powerupSound ); powerupSound = nullptr;
+    }
+    SDL_SetRenderDrawColor( gRenderer, 0, 0, 0, 0xff );
+    SDL_RenderClear( gRenderer );
+
+    ta.renderPrint();
+    sb.renderPrint();
+
+    SDL_RenderPresent( gRenderer );
+  }
 }
 
 void App::close()
@@ -236,5 +193,4 @@ void App::close()
 
   TTF_Quit();
   SDL_Quit();
-  Mix_Quit();
 }
