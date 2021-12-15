@@ -1,0 +1,5 @@
+hello sample.txt
+
+how are you?
+
+

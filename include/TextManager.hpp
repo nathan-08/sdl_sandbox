@@ -36,6 +36,9 @@ class TextArea {
     const int maxCharsPerLine;
     int furthestOffset = 0;
 
+    std::vector<size_t> search_indices;
+    size_t search_len=0;
+
     struct LineDatum {
       int text_idx = 0;
       int num_chars = 0;
@@ -72,6 +75,8 @@ class TextArea {
     void zb();
     void gg();
     void G();
+    void updateSearch(std::string);
+    void moveToNextSearchIdx();
 };
 
 #endif // TEXT_MANAGER_HPP

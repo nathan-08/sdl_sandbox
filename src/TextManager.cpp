@@ -19,20 +19,33 @@ GlyphCache::GlyphCache(SDL_Renderer* r, TTF_Font* f)
   : renderer(r), font(f)
 {
   string charlist = getCharlist();
+  //string charlist = "0123456789abcdefgh";
   int xoffset = 0;
+  //int yoffset = 16*2;
   for(const char& ch : charlist)
   {
     int minx, maxx, miny, maxy, advance;
     TTF_GlyphMetrics(font, ch, &minx, &maxx, &miny, &maxy, &advance);
     glyph_map[ch] = new SDL_Rect {xoffset, 0, advance, CHAR_H};
     xoffset += advance;
+    //cout << ch << " width: " << advance << ", height: ";
+    //cout << "  " << maxy - miny << endl;
+    //glyph_map[ch] = new SDL_Rect {xoffset, yoffset, 8, 16};
+    //xoffset += 8;
   }
+  //SDL_Surface* s = SDL_LoadBMP("/Users/nathanklundt/fonts/bizcat.bmp");
+  //cout << "surface: " << (int)s->format->BitsPerPixel << endl;
+  //SDL_SetColorKey(s, SDL_TRUE, SDL_MapRGB(s->format, 0xff, 0xff, 0xff));
   // generate glyphset texture
-  SDL_Surface* s = TTF_RenderText_Solid(font,
+  SDL_Surface* s1 = TTF_RenderText_Solid(font,
                                         charlist.c_str(),
                                         SDL_Color{255,255,255,255});
-  glyphset = SDL_CreateTextureFromSurface(renderer, s);
-  SDL_FreeSurface(s);
+  //SDL_Surface* s2 = SDL_ConvertSurface(s, s1->format, 0);
+  glyphset = SDL_CreateTextureFromSurface(renderer, s1);
+  SDL_SetTextureBlendMode(glyphset, SDL_BLENDMODE_BLEND);
+  //SDL_FreeSurface(s);
+  SDL_FreeSurface(s1);
+  //SDL_FreeSurface(s2);
 }
 
 GlyphCache::~GlyphCache()
@@ -60,7 +73,7 @@ TextArea::TextArea(SDL_Renderer* r,
                    , textColor(textColor_)
                    , bgColor(bgColor_)
                    , gc(gc_)
-                   , maxLines((d.h - TextArea::padding*2) / CHAR_H)
+                   , maxLines(((d.h - TextArea::padding*2 - CHAR_H) / CHAR_H))
                    , maxCharsPerLine((d.w - padding*2) / CHAR_W)
 { }
 
@@ -218,6 +231,30 @@ void TextArea::G() {
   updateFLTR();
 }
 
+void TextArea::updateSearch(string searchstr) {
+  if (text.empty()) return;
+  search_indices.clear();
+  search_len = searchstr.size();
+  size_t idx = -1;
+  while ((idx = text.find(searchstr, idx+1)) != string::npos) {
+    search_indices.push_back(idx);
+  }
+}
+
+void TextArea::moveToNextSearchIdx() {
+  if (!search_indices.empty()) {
+    for (const size_t& i: search_indices) {
+      if (i > cursor_pos) {
+        cursor_pos = i;
+        updateFLTR();
+        return;
+      }
+    }
+    cursor_pos = search_indices.at(0);
+    updateFLTR();
+  }
+}
+
 void TextArea::renderPrint()
 {
   // render bg
@@ -247,6 +284,9 @@ void TextArea::renderPrint()
     SDL_RenderFillRect(renderer, &cursor);
   }
   // apply text color
+  //cout << "texture color mod" << endl;
+  //cout << hex;
+  //cout << (int)textColor.r << "." << (int)textColor.g << "." << (int)textColor.b << endl;
   SDL_SetTextureColorMod(gc.glyphset,
                          textColor.r,
                          textColor.g,
@@ -256,6 +296,15 @@ void TextArea::renderPrint()
   int xoffset = base_x_offset;
   int yoffset = base_y_offset;
   int lastLineToRender = getLLTR();
+
+  size_t search_idx_counter = 0;
+  size_t search_idx = -1;
+  int search_len_counter = -1;
+  size_t num_search_idcs = search_indices.size();
+  if (active && (num_search_idcs > search_idx_counter)) {
+    search_idx = search_indices.at(search_idx_counter++);
+  }
+
   for (int j = firstLineToRender; j <= lastLineToRender; ++j) {
     const auto& line_dat = lineData.at(j);
     for (int i = line_dat.text_idx;
@@ -263,6 +312,15 @@ void TextArea::renderPrint()
          ++i)
     {
       const char& ch = text.at(i);
+      while (i > search_idx && search_idx_counter < num_search_idcs) {
+        search_idx = search_indices.at(search_idx_counter++);
+      }
+      if (i == search_idx) {
+        search_len_counter = search_len;
+        if (search_idx_counter < num_search_idcs) {
+          search_idx = search_indices.at(search_idx_counter++);
+        }
+      }
       if (ch == '\t') {
         xoffset += CHAR_W;
       }
@@ -282,11 +340,40 @@ void TextArea::renderPrint()
                                  textColor.g,
                                  textColor.b);
         }
+        if (search_len_counter > 0) --search_len_counter;
       }
       else if (isgraph(ch) || ch == ' ') {
-        SDL_Rect* rect = gc.glyph_map.at(ch);
-        SDL_Rect destrect = {xoffset, yoffset, rect->w, rect->h };
-        SDL_RenderCopy(renderer, gc.glyphset, rect, &destrect);
+        if (active && (search_len_counter > 0)) {
+          SDL_SetTextureColorMod(gc.glyphset,
+                                 bgColor.r,
+                                 bgColor.g,
+                                 bgColor.b);
+          SDL_SetRenderDrawColor(renderer,
+                                 0xc0,
+                                 0xc0,
+                                 0xf0,
+                                 0xff);
+          SDL_Rect highlight {xoffset, yoffset, CHAR_W, CHAR_H};
+          SDL_RenderFillRect(renderer, &highlight);
+          SDL_SetRenderDrawColor(renderer,
+                                 bgColor.r,
+                                 bgColor.g,
+                                 bgColor.b,
+                                 bgColor.a);
+          SDL_Rect* rect = gc.glyph_map.at(ch);
+          SDL_Rect destrect = {xoffset, yoffset, rect->w, rect->h };
+          SDL_RenderCopy(renderer, gc.glyphset, rect, &destrect);
+          SDL_SetTextureColorMod(gc.glyphset,
+                                 textColor.r,
+                                 textColor.g,
+                                 textColor.b);
+          --search_len_counter;
+        }
+        else {
+          SDL_Rect* rect = gc.glyph_map.at(ch);
+          SDL_Rect destrect = {xoffset, yoffset, rect->w, rect->h };
+          SDL_RenderCopy(renderer, gc.glyphset, rect, &destrect);
+        }
         xoffset += CHAR_W;
       }
     }

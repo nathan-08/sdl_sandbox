@@ -3,6 +3,7 @@
 #include <SDL_mixer.h>
 #include <cctype>
 #include <cstdint>
+#include <cstdlib>
 #include <iostream>
 #include <sstream>
 #include <fstream>
@@ -20,6 +21,7 @@ static SDL_Window *gWindow = NULL;
 static SDL_Renderer *gRenderer = NULL;
 static TTF_Font *gFont = NULL;
 TextArea* tap = nullptr;
+TextArea* sbrp = nullptr;
 
 string getCharlist(void);
 
@@ -37,18 +39,41 @@ void App::execute_command(string command) {
   //cout << "executing <" << command << ">" << endl;
   if (command.find(":open ") == 0) {
     // TODO work on this
-    ifstream f(command.substr(6), fstream::in | fstream::out);
-    if (!f.is_open()) {
-      cout << "failed to open " + command.substr(6) << endl;
-      return;
-    }
+    ifstream f(command.substr(6), fstream::in);
+    //if (!f.is_open()) {
+      //cout << "failed to open " + command.substr(6) << endl;
+      //return;
+    //}
     filepath = command.substr(6);
-    ostringstream oss;
-    oss << f.rdbuf();
-    tap->setText(oss.str());
+    sbrp->setText(filepath);
+    if (f.is_open()) {
+      ostringstream oss;
+      oss << f.rdbuf();
+      tap->setText(oss.str());
+    }
+  }
+  else if (command == ":w") {
+    if (!filepath.empty()) {
+      ofstream f(filepath, fstream::trunc);
+      if (!f.is_open()) {
+        cout << "Failed to write to " + filepath << endl;
+        return;
+      }
+      f << tap->getText();
+    }
   }
   else if (command == ":q") {
     quit = true;
+  }
+  else if (command.find(":!") == 0) {
+    // execute system command
+    string cmd = command.substr(2);
+    system((cmd + " > temp.txt").c_str());
+    ostringstream oss;
+    oss << ifstream("temp.txt").rdbuf();
+    filepath = "temp.txt";
+    sbrp->setText(filepath);
+    tap->setText(oss.str());
   }
   else if (command == ":zt") {
     tap->zt();
@@ -66,22 +91,34 @@ void App::execute_command(string command) {
 
 void App::mainloop()
 {
+  SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, 0);
   GlyphCache glyphcache(gRenderer, gFont);
   TextArea ta(gRenderer,
               {0, 0, L_WIDTH, L_HEIGHT - (CHAR_H + TextArea::padding)},
               {0xee, 0xee, 0xee, 0xff},       // text color
-              {0x40, 0x60, 0xee, 0xff},       // bg color
+              {0x40, 0x40, 0x80, 0xff},       // bg color
+              //{0x40, 0x60, 0xee, 0xff},       // bg color (cfblue)
               glyphcache);    
   TextArea::activate(ta);
   tap = &ta;
   TextArea sb(gRenderer,
-              {0, L_HEIGHT - (CHAR_H + TextArea::padding), L_WIDTH, (CHAR_H + TextArea::padding)},
-              {0x40, 0x60, 0xee, 0xff},       // text color
+              {0, L_HEIGHT - (CHAR_H + TextArea::padding), L_WIDTH-200, (CHAR_H + TextArea::padding)},
+              //{0x40, 0x60, 0xee, 0xff},       // text color
+              {0x40, 0x40, 0x80, 0xff},       // text color
               {0xee, 0xee, 0xee, 0xff},       // bg color
               glyphcache);    
   sb.setText("EDIT MODE");
+  TextArea sbr(gRenderer,
+      {L_WIDTH - 200, L_HEIGHT - (CHAR_H + TextArea::padding),
+      200,
+      (CHAR_H + TextArea::padding)},
+      {0xff,0xff,0xff,0xff},// text color
+      {0x00,0x00,0x00,0xff},// bg color
+      glyphcache);
+  sbrp = &sbr;
+  //sbr.setText("some info here");
   enum Mode { EDIT, INSERT };
-  enum SubMode { DEFAULT, COMMAND };
+  enum SubMode { DEFAULT, COMMAND, SEARCH };
   Mode mode = EDIT;
   SubMode subMode = DEFAULT;
 
@@ -102,9 +139,16 @@ void App::mainloop()
                 sb.setText("");
                 sb.append(':');
               }
+              if (e.text.text[0] == '/') {
+                subMode = SEARCH;
+                sb.setText("");
+                sb.append('/');
+              }
             }
-            else if (subMode == COMMAND) {
+            else if (subMode == COMMAND || subMode == SEARCH) {
               sb.append(e.text.text[0]);
+              if (subMode == SEARCH)
+                ta.updateSearch(sb.getText().substr(1));
             }
           }
           else if (e.type == SDL_KEYDOWN) {
@@ -136,17 +180,28 @@ void App::mainloop()
                   ta.curseRight();
                 }
                 break;
+              case SDLK_n:
+                if (subMode == DEFAULT) {
+                  ta.moveToNextSearchIdx();
+                }
+                break;
               case SDLK_RETURN:
-                if (subMode == COMMAND) {
-                  execute_command(sb.getText());
+                if (subMode == COMMAND || subMode == SEARCH) {
+                  if (subMode == COMMAND)
+                    execute_command(sb.getText());
                   subMode = DEFAULT;
                   sb.setText("EDIT MODE");
                 }
                 break;
               case SDLK_BACKSPACE:
-                if (subMode == COMMAND) {
+                if (subMode == COMMAND || subMode == SEARCH) {
                   sb.backspace();
                 }
+                break;
+              case SDLK_ESCAPE:
+                subMode = DEFAULT;
+                sb.setText("EDIT MODE");
+                break;
             }
           }
       }
@@ -160,6 +215,9 @@ void App::mainloop()
         }
         else if (e.type == SDL_KEYDOWN) {
           switch (e.key.keysym.sym) {
+            case SDLK_TAB:
+              ta.append('\t');
+              break;
             case SDLK_RETURN:
               ta.append('\n');
               break;
@@ -173,13 +231,13 @@ void App::mainloop()
           }
         }
       }
-
     }
     SDL_SetRenderDrawColor( gRenderer, 0, 0, 0, 0xff );
     SDL_RenderClear( gRenderer );
 
     ta.renderPrint();
     sb.renderPrint();
+    sbr.renderPrint();
 
     SDL_RenderPresent( gRenderer );
   }

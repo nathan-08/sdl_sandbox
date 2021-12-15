@@ -1,0 +1,8 @@
+-- FEATURES TO BE IMPLEMENTED --
+
+( ) if new file, clear textArea buffer
+( ) implement reverse search (N)
+( ) implement EDITMODE 'x' command
+( ) implement 2x-sequence commands
+( ) implement Word and Back traversal methods
+

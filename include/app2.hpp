@@ -14,6 +14,3 @@ public:
 };
 
 #endif //APP_HPP
-
-
-// I have modified this file

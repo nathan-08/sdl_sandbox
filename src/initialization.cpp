@@ -12,7 +12,7 @@ bool sdl_init( SDL_Window **window_p, SDL_Renderer **renderer_p )
     success = false;
   }
 
-  *window_p = SDL_CreateWindow( "SDL FONT DEMO", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE );
+  *window_p = SDL_CreateWindow( "vim_x", SDL_WINDOWPOS_UNDEFINED, SDL_WINDOWPOS_UNDEFINED, SCREEN_WIDTH, SCREEN_HEIGHT, SDL_WINDOW_SHOWN | SDL_WINDOW_RESIZABLE );
   if( *window_p == NULL )
   {
     printf( "Window could not be created! Error: %s\n", SDL_GetError() );
@@ -41,9 +41,17 @@ bool load_font( TTF_Font **font_p )
 {
   bool success = true;
   //// gb.ttf, press_start.ttf, 04b_03.ttf ////
-  *font_p = TTF_OpenFont("/Users/nathanklundt/fonts/04b_03.ttf", 32);
-  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/pc_fonts/ttf-mx-mixed-outline+bitmap/Mx437_AMI_EGA_9x14.ttf", 16);
-  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/anka-coder-fonts/AnkaCoder/ankacoder_norm_regular.otf", 20);
+  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/kongtext/kongtext.ttf", 16);
+
+  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/pc_fonts/ttf-mx-mixed-outline+bitmap/Mx437_IBM_VGA_8x16.ttf", 16);
+
+  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/pc_fonts/ttf-mx-mixed-outline+bitmap/Mx437_PhoenixEGA_8x16.ttf", 16);
+
+  *font_p = TTF_OpenFont("/Users/nathanklundt/fonts/AtariST8x16SystemFont.ttf", 16);
+
+
+  //*font_p = TTF_OpenFont("/Users/nathanklundt/fonts/pc_fonts/ttf-mx-mixed-outline+bitmap/Mx437_ToshibaTxL1_8x16.ttf", 16);
+
   if( *font_p == NULL )
   {
     printf( "Failed to load font! SDL_ttf Error: %s\n", TTF_GetError() );
