@@ -73,8 +73,14 @@ class TextArea {
     void updateFLTR();
     void zt();
     void zb();
+    void zz();
+    void o();
+    void O();
     void gg();
     void G();
+    void dd();
+    void ctrl_u();
+    void ctrl_d();
     void updateSearch(std::string);
     void moveToNextSearchIdx();
 };

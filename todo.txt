@@ -1,8 +1,10 @@
 -- FEATURES TO BE IMPLEMENTED --
 
-( ) if new file, clear textArea buffer
+(x) if new file, clear textArea buffer
+(x) implement 2x-sequence commands
+( ) implement H, M, L, jk
+( ) implement ctrl + e,y,u,d
 ( ) implement reverse search (N)
 ( ) implement EDITMODE 'x' command
-( ) implement 2x-sequence commands
 ( ) implement Word and Back traversal methods
 

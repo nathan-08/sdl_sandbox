@@ -1,4 +1,0 @@
-hello word
-y.txt
-
-another line

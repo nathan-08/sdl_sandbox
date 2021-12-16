@@ -7,6 +7,7 @@ class App
   static bool quit;
   static std::string filepath;
   static void execute_command(std::string);
+  static bool evaluate_quick_buf(std::string, SDL_Keymod);
 public: 
   static void init();
   static void close();

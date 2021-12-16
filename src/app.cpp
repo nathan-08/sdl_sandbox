@@ -51,6 +51,7 @@ void App::execute_command(string command) {
       oss << f.rdbuf();
       tap->setText(oss.str());
     }
+    else tap->setText("");
   }
   else if (command == ":w") {
     if (!filepath.empty()) {
@@ -89,6 +90,55 @@ void App::execute_command(string command) {
   }
 }
 
+bool App::evaluate_quick_buf(string buf, SDL_Keymod keymod) {
+  bool is_cap = (keymod & (KMOD_LSHIFT | KMOD_RSHIFT));
+  bool ctrl = (keymod & (KMOD_LCTRL | KMOD_RCTRL));
+  if (buf.size() > 2) {
+    return false;
+  }
+  else if (buf == "zt") {
+    tap->zt();
+    return false;
+  }
+  else if (buf == "zb") {
+    tap->zb();
+    return false;
+  }
+  else if (buf == "zz") {
+    tap->zz();
+    return false;
+  }
+  else if (buf == "gg") {
+    tap->gg();
+    return false;
+  }
+  else if (buf == "o" && is_cap) {
+    tap->O();
+    return false;
+  }
+  else if (buf == "o") {
+    tap->o();
+    return false;
+  }
+  else if (buf == "g" && is_cap) {
+    tap->G();
+    return false;
+  }
+  else if (buf == "dd") {
+    tap->dd();
+    return false;
+  }
+  else if (buf == "u" && ctrl) {
+    tap->ctrl_u();
+    return false;
+  }
+  else if (buf == "d" && ctrl) {
+    tap->ctrl_d();
+    return false;
+  }
+  else return true;
+}
+
 void App::mainloop()
 {
   SDL_SetHint(SDL_HINT_RENDER_SCALE_QUALITY, 0);
@@ -118,9 +168,13 @@ void App::mainloop()
   sbrp = &sbr;
   //sbr.setText("some info here");
   enum Mode { EDIT, INSERT };
-  enum SubMode { DEFAULT, COMMAND, SEARCH };
+  enum SubMode { DEFAULT, COMMAND, SEARCH, QUICK }; // command submode is triggered by entering ':', search by '/'
+  // QUICK command is triggered by any other character and can process multiple char sequences.
+  string sequence_first_chars = "gGzdHMLou";
   Mode mode = EDIT;
   SubMode subMode = DEFAULT;
+  SDL_Keymod keymod;
+  string quick_buf;
 
   SDL_Event e;
 
@@ -132,14 +186,14 @@ void App::mainloop()
       while( SDL_PollEvent( &e ) != 0 )
       {
           if( e.type == SDL_QUIT ) quit = true;
-          if (e.type == SDL_TEXTINPUT) {
+          if (e.type == SDL_TEXTINPUT) { // can get mods?
             if (subMode == DEFAULT) {
               if (e.text.text[0] == ':') {
                 subMode = COMMAND;
                 sb.setText("");
                 sb.append(':');
               }
-              if (e.text.text[0] == '/') {
+              else if (e.text.text[0] == '/') {
                 subMode = SEARCH;
                 sb.setText("");
                 sb.append('/');
@@ -149,10 +203,27 @@ void App::mainloop()
               sb.append(e.text.text[0]);
               if (subMode == SEARCH)
                 ta.updateSearch(sb.getText().substr(1));
+              //if (subMode == QUICK)
+                //if (!evaluate_quick_buf(sb.getText(), SDL_GetModState())) {
+                  //sb.setText("EDIT MODE");
+                  //subMode = DEFAULT;
+                //}
             }
           }
           else if (e.type == SDL_KEYDOWN) {
-            switch (e.key.keysym.sym) {
+            if (subMode == QUICK || (subMode == DEFAULT && sequence_first_chars.find(e.key.keysym.sym) != string::npos))
+            {
+              if (subMode == DEFAULT) {
+                subMode = QUICK;
+                sb.setText("");
+              }
+              sb.append(e.key.keysym.sym);
+              if (!evaluate_quick_buf(sb.getText(), SDL_GetModState())) {
+                sb.setText("EDIT MODE");
+                subMode = DEFAULT;
+              }
+            }
+            else switch (e.key.keysym.sym) {
               case SDLK_i:
                 if (subMode == DEFAULT) {
                   mode = INSERT;

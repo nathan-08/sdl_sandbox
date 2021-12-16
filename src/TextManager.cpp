@@ -221,9 +221,68 @@ void TextArea::zb() {
       );
 }
 
+void TextArea::zz() {
+  int cursorLine, cursorOffset;
+  getLineAndOffsetFromIdx(cursor_pos, cursorLine, cursorOffset);
+  firstLineToRender = max(
+    0,
+    cursorLine - maxLines / 2);
+}
+
+void TextArea::o() {
+  int cursorLine, cursorOffset;
+  getLineAndOffsetFromIdx(cursor_pos, cursorLine, cursorOffset);
+  // add '\n' at end of current line
+  cursor_pos =
+    lineData.at(cursorLine).text_idx + lineData.at(cursorLine).num_chars;
+  append('\n');
+}
+
+void TextArea::O() {
+  int cursorLine, cursorOffset;
+  getLineAndOffsetFromIdx(cursor_pos, cursorLine, cursorOffset);
+  // add '\n' at end of current line
+  cursor_pos =
+    lineData.at(cursorLine).text_idx;
+  append('\n');
+  cursor_pos = lineData.at(cursorLine).text_idx;
+}
+
 void TextArea::gg() {
   cursor_pos = 0;
   updateFLTR();
+}
+
+void TextArea::dd() {
+  int cursorLine, cursorOffset;
+  getLineAndOffsetFromIdx(cursor_pos, cursorLine, cursorOffset);
+  // delete current line
+  text.erase(lineData.at(cursorLine).text_idx,
+             lineData.at(cursorLine).num_chars+1);
+  updateLineData();
+  cursor_pos = lineData.at(cursorLine).text_idx;
+}
+
+void TextArea::ctrl_u() {
+  firstLineToRender = max(
+      0,
+      firstLineToRender - maxLines / 2);
+  int cursorLine, cursorOffset;
+  getLineAndOffsetFromIdx(cursor_pos, cursorLine, cursorOffset);
+  if (cursorLine > firstLineToRender + maxLines) {
+    cursor_pos = lineData.at(firstLineToRender + maxLines).text_idx;
+  }
+}
+
+void TextArea::ctrl_d() {
+  firstLineToRender = min(
+      (int)lineData.size() - 1,
+      firstLineToRender + maxLines / 2);
+  int cursorLine, cursorOffset;
+  getLineAndOffsetFromIdx(cursor_pos, cursorLine, cursorOffset);
+  if (firstLineToRender > cursorLine) {
+    cursor_pos = lineData.at(firstLineToRender).text_idx;
+  }
 }
 
 void TextArea::G() {

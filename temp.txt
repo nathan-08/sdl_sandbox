@@ -1,8 +1,2 @@
--- FEATURES TO BE IMPLEMENTED --
-
-( ) if new file, clear textArea buffer
-( ) implement reverse search (N)
-( ) implement EDITMODE 'x' command
-( ) implement 2x-sequence commands
-( ) implement Word and Back traversal methods
-
+g++ -std=c++17 -Wall -c src/app.cpp -I/Library/Frameworks/SDL2.framework/Headers -I/Library/Frameworks/SDL2_ttf.framework/Headers -I/Library/Frameworks/SDL2_mixer.framework/Headers -I include
+g++ -std=c++17 -Wall -o main main.o TextManager.o app.o initialization.o -framework SDL2 -framework SDL2_ttf -F/Library/Frameworks
